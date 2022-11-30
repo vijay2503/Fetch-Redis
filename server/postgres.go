@@ -49,7 +49,7 @@ func (LocalService) GET(key string) (error, string) {
 	serverData := &model.ServerData{}
 	err := Db.Table("server_data").Find(serverData, "key=?", key).Error
 	if err != nil {
-		return err, ""
+		return err, "test"
 	}
 	return nil, serverData.Value
 }
