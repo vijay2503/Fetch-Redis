@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -16,24 +15,20 @@ var Db *gorm.DB
 
 type LocalService struct{}
 
+//ConnectDrive connect With Local Data-Base
 func ConnectDrive() {
 	var err error
 	if err := godotenv.Load(`D:\Fetch-Redis\server\dbconfig.env`); err != nil {
 		fmt.Println(err)
 		log.Fatal("Error loading .env file")
 	}
-	host := os.Getenv("HOST")
-	port := os.Getenv("PORT")
-	user := os.Getenv("USER")
-	password := os.Getenv("PASSWORD")
-	dbname := os.Getenv("DBNAME")
-	Db, err = Connect(host, port, user, password, dbname)
+	Db, err = Connect(os.Getenv("HOST"), os.Getenv("PORT"), os.Getenv("USER"), os.Getenv("PASSWORD"), os.Getenv("DBNAME"))
 	if err != nil {
 		fmt.Println(err)
-		panic(err)
 	}
-
 }
+
+//Table Creation to crete the table to the database
 func TableCreation() {
 	table := model.ServerData{}
 	Db.CreateTable(&table).SingularTable(true)
@@ -45,26 +40,18 @@ func (LocalService) Insert(data model.ServerData) error {
 	}
 	return nil
 }
+
+//GET to get the data from local-database
 func (LocalService) GET(key string) (error, string) {
 	serverData := &model.ServerData{}
 	err := Db.Table("server_data").Find(serverData, "key=?", key).Error
 	if err != nil {
-		return err, "test"
+		return err, ""
 	}
 	return nil, serverData.Value
 }
-func (LocalService) Delete(delId int) error {
-	serverData := &model.ServerData{}
-	db := Db.Table("server_data").Where("id=$1", delId).Delete(serverData, "key=?", delId)
-	if db.Error != nil {
-		log.Println("func Name : RepoDeleteStudentDetails error=", db.Error)
-		return db.Error
-	} else if db.RowsAffected < 1 {
-		return errors.New("not exist")
-	}
-	return nil
-}
 
+//Update is Update the data to the local data-base
 func (LocalService) Update(key, value string) error {
 	serverData := &model.ServerData{}
 	err := Db.Table("server_data").Find(serverData, "key=?", key).Error

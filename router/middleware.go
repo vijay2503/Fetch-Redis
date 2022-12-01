@@ -12,6 +12,7 @@ import (
 
 var LocalServe s.LocalService
 
+//CreateData handles the POST request from client
 func CreateData(c echo.Context) error {
 	create := model.ServerData{}
 	if err := c.Bind(&create); err != nil {
@@ -19,39 +20,45 @@ func CreateData(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Failed to Bind Data")
 	}
 	if err := LocalServe.Insert(create); err != nil {
+		if err.Error() == `pq: duplicate key value violates unique constraint "server_data_key_key"` {
+			return c.String(http.StatusBadRequest, "Already This key has Exist allow Only Updation")
+		}
 		fmt.Println(err)
 		return c.String(http.StatusBadRequest, "Failed to Insert Data to Postgres")
 	}
-	val, err := LocalServe.SetRedis(create.Key, create.Value)
+	_, err := LocalServe.SetRedis(create.Key, create.Value)
 	if err != nil {
 		return c.String(http.StatusBadRequest, "Failed to Store the Data in redis")
 	}
 
-	return c.String(http.StatusOK, "Successfully Inserted\n"+val)
+	return c.String(http.StatusOK, "Successfully Inserted\n"+"{"+create.Key+":"+create.Value+"}")
 }
+
+//GetData handles the GET request from client
 func GetData(c echo.Context) error {
-retrieve:
 	key := c.QueryParam("key")
 	v, err := LocalServe.GetRedis(key)
 	if v == "" || err != nil {
 		rr, value := LocalServe.GET(key)
 		if rr != nil {
 			return c.String(http.StatusBadRequest, "Failed to retrieve data from Local Data-Base")
+		} else {
+			_, er := LocalServe.SetRedis(key, value)
+			if er != nil {
+				return c.String(http.StatusBadRequest, "Failed to SeT data from Local Data-Base to Redis")
+			}
+			return c.String(http.StatusOK, "Retrieve from Local Data-Base-Server "+`{`+key+`:`+value+`}`)
 		}
-		_, er := LocalServe.SetRedis(key, value)
-		if er != nil {
-			return c.String(http.StatusBadRequest, "Failed to SeT data from Local Data-Base to Redis")
-		}
-		goto retrieve
 	}
-
 	return c.String(http.StatusOK, "Retrieve from Redis-Server "+`{`+key+`:`+v+`}`)
 }
+
+//DeleteData handles the DELETE request from client
 func DeleteData(c echo.Context) error {
 	delKey := c.QueryParam("delete-key")
 	err := LocalServe.DelRedis(delKey)
 	if err != nil {
-		if err.Error() == errors.New("Key").Error() {
+		if err.Error() == errors.New("Key Does Not Exist").Error() {
 			return c.String(http.StatusBadRequest, "Deleted Key Does Not Exist")
 		} else {
 			return c.String(http.StatusBadRequest, "Failed to Delete the data")
@@ -60,6 +67,7 @@ func DeleteData(c echo.Context) error {
 	return c.String(http.StatusOK, "Success fully deleted the data")
 }
 
+//UpdateData handles the PUT request from client
 func UpdateData(c echo.Context) error {
 	updateKey := c.QueryParam("update-key")
 	updateValue := c.QueryParam("update-value")
@@ -76,6 +84,5 @@ func UpdateData(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusBadRequest, "Failed to Store the Data in redis")
 	}
-
 	return c.String(http.StatusOK, val+"Success fully Updated the data\n"+`{`+updateKey+`:`+updateValue+`}`)
 }
